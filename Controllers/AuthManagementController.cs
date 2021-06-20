@@ -27,6 +27,30 @@ namespace TEST_DEV_MAGB_190621_BACK.Controllers
             _userManager = userManager;
             _jwtConfig = optionsMonitor.CurrentValue;
         }
+        
+        private string GenerateJwtToken(IdentityUser user)
+        {
+            var jwtTokenHandler = new JwtSecurityTokenHandler();
+
+            var key = Encoding.ASCII.GetBytes(_jwtConfig.Secret);
+            var tokenDescriptor = new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity(new[]
+                {
+                    new Claim("Id", user.Id),
+                    new Claim(JwtRegisteredClaimNames.Email, user.Email),
+                    new Claim(JwtRegisteredClaimNames.Sub, user.Email),
+                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+                }),
+                Expires = DateTime.UtcNow.AddMinutes(15),
+                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+            };
+
+            var token = jwtTokenHandler.CreateToken(tokenDescriptor);
+            var jwtToken = jwtTokenHandler.WriteToken(token);
+
+            return jwtToken;
+        }
         [HttpPost]
         [Route("Register")]
         public async Task<IActionResult> Register([FromBody] UserRegistrationDTO user)
@@ -34,7 +58,7 @@ namespace TEST_DEV_MAGB_190621_BACK.Controllers
             if (ModelState.IsValid)
             {
                 var existingUser = await _userManager.FindByEmailAsync(user.Email);
-                if(existingUser != null)
+                if (existingUser != null)
                 {
                     return BadRequest(new RegistrationResponse()
                     {
@@ -60,7 +84,7 @@ namespace TEST_DEV_MAGB_190621_BACK.Controllers
                         Success = true,
                         Token = jwtToken
                     });
-                } 
+                }
                 else
                 {
                     return BadRequest(new RegistrationResponse()
@@ -79,28 +103,51 @@ namespace TEST_DEV_MAGB_190621_BACK.Controllers
                 Success = false
             });
         }
-        private string GenerateJwtToken(IdentityUser user)
+        [HttpPost]
+        [Route("Login")]
+        public async Task<IActionResult> Login([FromBody] UserLoginRequest loginRequest)
         {
-            var jwtTokenHandler = new JwtSecurityTokenHandler();
-
-            var key = Encoding.ASCII.GetBytes(_jwtConfig.Secret);
-            var tokenDescriptor = new SecurityTokenDescriptor
+            if (ModelState.IsValid)
             {
-                Subject = new ClaimsIdentity(new[]
+                var existingUser = await _userManager.FindByEmailAsync(loginRequest.Email);
+                if(existingUser == null)
                 {
-                    new Claim("Id", user.Id),
-                    new Claim(JwtRegisteredClaimNames.Email, user.Email),
-                    new Claim(JwtRegisteredClaimNames.Sub, user.Email),
-                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-                }),
-                Expires = DateTime.UtcNow.AddMinutes(15),
-                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
-            };
-
-            var token = jwtTokenHandler.CreateToken(tokenDescriptor);
-            var jwtToken = jwtTokenHandler.WriteToken(token);
-
-            return jwtToken;
+                    return BadRequest(new RegistrationResponse()
+                    {
+                        Errors = new List<string>()
+                        {
+                            "Invalid login request"
+                        },
+                        Success = false
+                    });
+                }
+                var isCorrect = await _userManager.CheckPasswordAsync(existingUser, loginRequest.Password);
+                if(!isCorrect)
+                {
+                    return BadRequest(new RegistrationResponse()
+                    {
+                        Errors = new List<string>()
+                        {
+                            "Invalid login request"
+                        },
+                        Success = false
+                    });
+                }
+                var jwtToken = GenerateJwtToken(existingUser);
+                return Ok(new RegistrationResponse()
+                {
+                    Success = true,
+                    Token = jwtToken
+                });
+            }
+            return BadRequest(new RegistrationResponse()
+            {
+                Errors = new List<string>()
+                {
+                    "Model state invalid"
+                },
+                Success = false
+            });
         }
     }
 }

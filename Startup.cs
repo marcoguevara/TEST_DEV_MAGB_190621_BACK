@@ -46,7 +46,7 @@ namespace TEST_DEV_MAGB_190621_BACK
                     IssuerSigningKey = new SymmetricSecurityKey(key),
                     ValidateIssuer = false,
                     ValidateAudience = false,
-                    ValidateLifetime = false,
+                    ValidateLifetime = true,
                     RequireExpirationTime = false
                 };
             });
